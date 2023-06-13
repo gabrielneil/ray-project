@@ -4,7 +4,7 @@ from typing import Dict
 import ray
 import torch
 from PIL import Image
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from ray import serve
 from starlette.requests import Request
 from torchvision import transforms
@@ -12,14 +12,14 @@ from torchvision.models import resnet18
 from transformers import pipeline
 
 app = FastAPI()
-prediction_endpoint = "prediction"
+prediction_endpoint = "/predict"
 ray.init(address="auto")
 serve.start(detached=True)
 
 
 @serve.deployment
 @serve.ingress(app)
-class ModelServer:
+class ImgClassification:
     def __init__(self):
         self.count = 0
         self.model = resnet18(pretrained=True).eval()
@@ -43,21 +43,22 @@ class ModelServer:
             output_tensor = self.model(input_tensor)
         return {"class_index": int(torch.argmax(output_tensor[0]))}
 
-    @app.post("/prediction_endpoint")
-    def prediction(self):
-        return "Welcome to the PyTorch model server."
+    @app.post(prediction_endpoint)
+    async def prediction(self, file: UploadFile = File(...)):
+        image_bytes = await file.read()
+        return self.classify(image_bytes)
 
 
 @serve.deployment
 @serve.ingress(app)
-class SentimentAnalysisServer:
+class SentimentAnalysis:
     def __init__(self):
         self._model = pipeline("sentiment-analysis")
 
-    @app.post("/predict")
-    def get(self, request: Request) -> Dict:
+    @app.post(prediction_endpoint)
+    def prediction(self, request: Request) -> Dict:
         return self._model(request.query_params["text"])[0]
 
 
-ModelServer.deploy()
-SentimentAnalysisServer.deploy()
+ImgClassification.deploy()
+SentimentAnalysis.deploy()

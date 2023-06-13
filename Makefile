@@ -21,17 +21,24 @@ stop:
 
 deploy-single-model:
 	@( \
-		python single_model.py; \
+		python src/single_model.py; \
 	)
 
 deploy-multiple-models:
 	@( \
-		python multiple_models.py; \
+		python src/multiple_models.py; \
 	)
 
-predictions:
+single-model-predictions:
 	@( \
 		curl -X GET \
 		-H 'Content-Type: application/json' \
 		http://localhost:$(deployment_port)/$(sentiment_endpoint_name)?text=$(text_to_predict); \
+	)
+
+multiple-models-predictions:
+	@( \
+		curl --request POST \
+        -H 'Content-Type: application/json' \
+        http://localhost:$(deployment_port)/SentimentAnalysisServer/predict?text=$(text_to_predict); \
 	)
