@@ -6,7 +6,7 @@ from transformers import pipeline
 
 
 # 1: Wrap the pretrained sentiment analysis model in a Serve deployment.
-@serve.deployment(route_prefix="/123")
+@serve.deployment(route_prefix="/sentiment")
 class SentimentAnalysisDeployment:
     def __init__(self):
         self._model = pipeline("sentiment-analysis")

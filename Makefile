@@ -1,5 +1,5 @@
 deployment_port=8000
-endpoint_name=123
+sentiment_endpoint_name=sentiment
 text_to_predict=Ray+Serve+is+great%21
 install:
 	@( \
@@ -28,5 +28,5 @@ predictions:
 	@( \
 		curl -X GET \
 		-H 'Content-Type: application/json' \
-		http://localhost:$(deployment_port)/$(endpoint_name)?text=$(text_to_predict); \
+		http://localhost:$(deployment_port)/$(sentiment_endpoint_name)?text=$(text_to_predict); \
 	)
