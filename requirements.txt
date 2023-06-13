@@ -1,0 +1,5 @@
+transformers
+ray[serve]
+torch
+torchvision
+tensorflow
