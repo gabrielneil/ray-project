@@ -3,3 +3,4 @@ ray[serve]
 torch
 torchvision
 tensorflow
+python-multipart

@@ -19,9 +19,14 @@ stop:
 		ray stop; \
 	)
 
-deploy-model:
+deploy-single-model:
 	@( \
-		python main.py; \
+		python single_model.py; \
+	)
+
+deploy-multiple-models:
+	@( \
+		python multiple_models.py; \
 	)
 
 predictions:
