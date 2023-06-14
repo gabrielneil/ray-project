@@ -17,6 +17,7 @@ ray.init(address="auto")
 serve.start(detached=True)
 
 
+# 1: Create an image classifier model with Pytorch and serve it with Ray + FastAPI.
 @serve.deployment
 @serve.ingress(app)
 class ImgClassification:
@@ -49,6 +50,7 @@ class ImgClassification:
         return self.classify(image_bytes)
 
 
+# 2: Wrap the HuggingFace's pretrained sentiment analysis model in a Serve deployment with Ray + FastAPI.
 @serve.deployment
 @serve.ingress(app)
 class SentimentAnalysis:
@@ -60,5 +62,6 @@ class SentimentAnalysis:
         return self._model(request.query_params["text"])[0]
 
 
+# 3: Deployment of both models
 ImgClassification.deploy()
 SentimentAnalysis.deploy()

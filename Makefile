@@ -40,5 +40,5 @@ multiple-models-predictions:
 	@( \
 		curl --request POST \
         -H 'Content-Type: application/json' \
-        http://localhost:$(deployment_port)/SentimentAnalysisServer/predict?text=$(text_to_predict); \
+        http://localhost:$(deployment_port)/SentimentAnalysis/predict?text=$(text_to_predict); \
 	)
