@@ -5,8 +5,8 @@ import ray
 import torch
 from PIL import Image
 from fastapi import FastAPI, UploadFile, File
+from pydantic import BaseModel
 from ray import serve
-from starlette.requests import Request
 from torchvision import transforms
 from torchvision.models import resnet18
 from transformers import pipeline
@@ -51,6 +51,12 @@ class ImgClassification:
 
 
 # 2: Wrap the HuggingFace's pretrained sentiment analysis model in a Serve deployment with Ray + FastAPI.
+# 2.1: Define request model (pydantic)
+class SentimentAnalysisRequest(BaseModel):
+    text: str
+
+
+# 2.2: Create model and endpoint
 @serve.deployment
 @serve.ingress(app)
 class SentimentAnalysis:
@@ -58,8 +64,8 @@ class SentimentAnalysis:
         self._model = pipeline("sentiment-analysis")
 
     @app.post(prediction_endpoint)
-    def prediction(self, request: Request) -> Dict:
-        return self._model(request.query_params["text"])[0]
+    def prediction(self, sentiment_request: SentimentAnalysisRequest) -> Dict:
+        return self._model(sentiment_request.text)[0]
 
 
 # 3: Deployment of both models
