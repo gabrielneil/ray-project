@@ -57,7 +57,9 @@ class SentimentAnalysisRequest(BaseModel):
 
 
 # 2.2: Create model and endpoint
-@serve.deployment
+@serve.deployment(
+    num_replicas=2,
+    max_concurrent_queries=15)
 @serve.ingress(app)
 class SentimentAnalysis:
     def __init__(self):
