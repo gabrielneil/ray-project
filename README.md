@@ -28,6 +28,8 @@ make start-and-serve
 ```
 
 You can now access the Ray dashboard at http://127.0.0.1:8265.
+![Screenshot](img/dashboard.png)
+
 
 ### Deploy a single model in Ray.
 
@@ -37,6 +39,8 @@ make deploy-single-model
 
 This will create a new node in your Kubernetes cluster and deploy a pretrained HuggingFace model for sentiment analysis
 inside it.
+
+![Screenshot](img/single_model_deployment.png)
 
 ### Stop Ray
 
@@ -51,7 +55,7 @@ make stop
 ```bash
 make single-model-predictions
 ```
-
+![Screenshot](img/single_model_prediction.png)
 ## Ray + FastAPI Usage
 
 ### Deploy two or more models with Ray + FastAPI.
@@ -59,13 +63,14 @@ make single-model-predictions
 The main idea behind this example is to take advantage of the several benefits that FastAPI brings to our
 infrastructure. In this case, we are deploying two models:
 
-- Dummy PyTorch NN.
-- HuggingFace pretrained sentiment analysis.
+- Dummy PyTorch NN. (1 node)
+- HuggingFace pretrained sentiment analysis. (2 nodes, because of replica config)
 
 ```bash
 make deploy-multiple-models
 ```
 
+![Screenshot](img/multiple_nodes.png)
 Note: This approach puts all models in a single file for practice purposes. It is not recommended for production use.
 
 ### Test the sentiment analysis endpoint.
