@@ -38,7 +38,8 @@ single-model-predictions:
 
 multiple-models-predictions:
 	@( \
-		curl --request POST \
-        -H 'Content-Type: application/json' \
-        http://localhost:$(deployment_port)/SentimentAnalysis/predict?text=$(text_to_predict); \
+        curl --request POST \
+          http://localhost:$(deployment_port)/SentimentAnalysis/predict \
+          -H 'Content-Type: application/json' \
+          -d '{"text": "Ray serve is great"}'; \
 	)
