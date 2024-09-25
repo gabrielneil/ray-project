@@ -4,3 +4,4 @@ torch
 torchvision
 tensorflow
 python-multipart
+xformers
