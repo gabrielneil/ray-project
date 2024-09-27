@@ -36,18 +36,7 @@ applications:
 
   deployments:
 
-  - name: Translator_model
-    num_replicas: 2
-    max_ongoing_requests: 100
-    graceful_shutdown_wait_loop_s: 2.0
-    graceful_shutdown_timeout_s: 20.0
-    health_check_period_s: 10.0
-    health_check_timeout_s: 30.0
-    ray_actor_options:
-      num_cpus: 0.2
-      num_gpus: 0.0
-
-  - name: Summarizer_model
+  - name: ImageCaptioning
     num_replicas: 2
     max_ongoing_requests: 100
     graceful_shutdown_wait_loop_s: 2.0
