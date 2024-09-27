@@ -28,29 +28,26 @@ applications:
 
 - name: app1
 
-  route_prefix: /classify
+  route_prefix: /
 
-  import_path: image_classifier:app
-
-  runtime_env: {}
-
-  deployments:
-
-  - name: downloader
-
-  - name: ImageClassifier
-
-- name: app2
-
-  route_prefix: /translate
-
-  import_path: text_translator:app
+  import_path: src.multi_model:app
 
   runtime_env: {}
 
   deployments:
 
-  - name: Translator_model!!!!
+  - name: Translator_model
+    num_replicas: 2
+    max_ongoing_requests: 100
+    graceful_shutdown_wait_loop_s: 2.0
+    graceful_shutdown_timeout_s: 20.0
+    health_check_period_s: 10.0
+    health_check_timeout_s: 30.0
+    ray_actor_options:
+      num_cpus: 0.2
+      num_gpus: 0.0
+
+  - name: Summarizer_model
     num_replicas: 2
     max_ongoing_requests: 100
     graceful_shutdown_wait_loop_s: 2.0

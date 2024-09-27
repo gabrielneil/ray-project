@@ -14,26 +14,36 @@ start-and-serve:
 		serve start --http-host=0.0.0.0; \
 	)
 
+start:
+	@( \
+		ray start --head; \
+	)
+
 stop:
 	@( \
 		ray stop; \
 	)
 
-deploy-single-model:
+build:
 	@( \
-		python src/single_model.py; \
+		serve build src.multi_model:app -o k8s/serve_config.yaml; \
 	)
+
+deploy:
+	@( \
+		serve deploy k8s/serve_config.yaml; \
+	)
+
+launch-prometheus:
+	@( \
+		ray metrics launch-prometheus; \
+	)
+
+execute-project: start build deploy launch-prometheus
 
 deploy-multiple-models:
 	@( \
 		python src/multiple_models.py; \
-	)
-
-single-model-predictions:
-	@( \
-		curl -X GET \
-		-H 'Content-Type: application/json' \
-		http://localhost:$(deployment_port)/$(sentiment_endpoint_name)?text=$(text_to_predict); \
 	)
 
 multiple-models-predictions:
