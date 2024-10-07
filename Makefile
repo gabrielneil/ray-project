@@ -3,7 +3,7 @@ sentiment_endpoint_name=sentiment
 text_to_predict=Ray+Serve+is+great%21
 install:
 	@( \
-		python3.8 -m venv venv; \
+		python3.10 -m venv venv; \
 		source venv/bin/activate; \
 		python -m pip install --no-cache-dir -r requirements.txt; \
 	)
@@ -52,4 +52,12 @@ multiple-models-predictions:
           http://localhost:$(deployment_port)/SentimentAnalysis/predict \
           -H 'Content-Type: application/json' \
           -d '{"text": "Ray serve is great"}'; \
+	)
+
+predictions:
+	@( \
+        curl --request POST \
+          http://localhost:$(deployment_port)/classify \
+          -H 'Content-Type: application/json' \
+          -d '{"image_url": "https://www.iptmiami.com/static/sitefiles/images/ipt-joy-01.jpg"}'; \
 	)

@@ -5,3 +5,5 @@ torchvision
 tensorflow
 python-multipart
 xformers
+scipy
+tf-keras
