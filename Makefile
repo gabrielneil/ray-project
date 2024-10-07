@@ -3,10 +3,25 @@ sentiment_endpoint_name=sentiment
 text_to_predict=Ray+Serve+is+great%21
 install:
 	@( \
-		python3.8 -m venv venv; \
+		python3.10 -m venv venv; \
 		source venv/bin/activate; \
 		python -m pip install --no-cache-dir -r requirements.txt; \
 	)
+
+isort:
+	@python -m isort -l 79 --profile black --check .
+
+black:
+	@python -m black -l 79 --check .
+
+pylama:
+	@python -m pylama .
+
+lint: isort black pylama
+
+lint-fix:
+	@python -m isort -l 79 --profile black .
+	@python -m black -l 79 .
 
 start-and-serve:
 	@( \
@@ -14,26 +29,38 @@ start-and-serve:
 		serve start --http-host=0.0.0.0; \
 	)
 
+start:
+	@( \
+		ray start --head; \
+	)
+
 stop:
 	@( \
 		ray stop; \
 	)
 
-deploy-single-model:
+build:
 	@( \
-		python src/single_model.py; \
+		serve build src.multi_model:app -o k8s/serve_config.yaml; \
 	)
+
+deploy:
+	@( \
+		serve deploy k8s/serve_config.yaml; \
+	)
+
+launch-prometheus:
+	@( \
+		ray metrics launch-prometheus; \
+	)
+
+execute-project: start build deploy launch-prometheus
+
+restart: stop execute-project
 
 deploy-multiple-models:
 	@( \
 		python src/multiple_models.py; \
-	)
-
-single-model-predictions:
-	@( \
-		curl -X GET \
-		-H 'Content-Type: application/json' \
-		http://localhost:$(deployment_port)/$(sentiment_endpoint_name)?text=$(text_to_predict); \
 	)
 
 multiple-models-predictions:
@@ -42,4 +69,12 @@ multiple-models-predictions:
           http://localhost:$(deployment_port)/SentimentAnalysis/predict \
           -H 'Content-Type: application/json' \
           -d '{"text": "Ray serve is great"}'; \
+	)
+
+predictions:
+	@( \
+        curl --request POST \
+          http://localhost:$(deployment_port)/classify \
+          -H 'Content-Type: application/json' \
+          -d '{"image_url": "https://www.iptmiami.com/static/sitefiles/images/ipt-joy-01.jpg"}'; \
 	)
