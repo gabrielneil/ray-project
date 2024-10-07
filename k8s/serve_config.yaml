@@ -68,6 +68,16 @@ applications:
       num_cpus: 0.2
       num_gpus: 0.0
 
+  - name: MusicMaker
+    num_replicas: 1
+    graceful_shutdown_wait_loop_s: 2.0
+    graceful_shutdown_timeout_s: 500.0
+    health_check_period_s: 10.0
+    health_check_timeout_s: 500.0
+    ray_actor_options:
+      num_cpus: 4.0
+      num_gpus: 0.0
+
   - name: VideoMaker
     num_replicas: 1
     graceful_shutdown_wait_loop_s: 2.0
@@ -79,11 +89,11 @@ applications:
       num_gpus: 0.0
 
   - name: WrapperModels
-    num_replicas: 2
+    num_replicas: 1
     graceful_shutdown_wait_loop_s: 2.0
     graceful_shutdown_timeout_s: 500.0
     health_check_period_s: 10.0
     health_check_timeout_s: 500.0
     ray_actor_options:
-      num_cpus: 4.0
+      num_cpus: 0.2
       num_gpus: 0.0
