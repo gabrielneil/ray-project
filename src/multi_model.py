@@ -1,17 +1,16 @@
 import logging
-import sys
 from io import BytesIO
 from urllib.request import Request
 
 import requests
 import scipy
+import torch
+from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline
+from moviepy.editor import *
 from PIL import Image
 from ray import serve
 from ray.serve.handle import DeploymentHandle
 from transformers import pipeline
-from moviepy.editor import *
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
-import torch
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -46,14 +45,16 @@ class Downloader:
     num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
     health_check_period_s=10,
-    health_check_timeout_s=70,
-    graceful_shutdown_timeout_s=70,
-    graceful_shutdown_wait_loop_s=2
+    health_check_timeout_s=500,
+    graceful_shutdown_timeout_s=500,
+    graceful_shutdown_wait_loop_s=2,
 )
 class ImageClassifier:
     def __init__(self, downloader: DeploymentHandle):
         self.downloader = downloader
-        self.model = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
+        self.model = pipeline(
+            "image-to-text", model="Salesforce/blip-image-captioning-base"
+        )
 
     async def classify(self, image_url: str) -> dict:
         image_ref = self.downloader.remote(image_url)
@@ -71,13 +72,16 @@ class ImageClassifier:
     num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
     health_check_period_s=10,
-    health_check_timeout_s=70,
-    graceful_shutdown_timeout_s=70,
-    graceful_shutdown_wait_loop_s=2
+    health_check_timeout_s=500,
+    graceful_shutdown_timeout_s=500,
+    graceful_shutdown_wait_loop_s=2,
 )
 class SentimentAnalysis:
     def __init__(self):
-        self.model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+        self.model = pipeline(
+            "sentiment-analysis",
+            model="distilbert-base-uncased-finetuned-sst-2-english",
+        )
 
     async def analyze_sentiment(self, text: str) -> dict:
         # Run inference on the text
@@ -92,20 +96,24 @@ class SentimentAnalysis:
     num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
     health_check_period_s=10,
-    health_check_timeout_s=70,
-    graceful_shutdown_timeout_s=70,
-    graceful_shutdown_wait_loop_s=2
+    health_check_timeout_s=500,
+    graceful_shutdown_timeout_s=500,
+    graceful_shutdown_wait_loop_s=2,
 )
 class CoverAlbumMaker:
     def __init__(self):
         model_id = "stabilityai/stable-diffusion-2"
-        scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
-        self.pipe = StableDiffusionPipeline.from_pretrained(model_id, scheduler=scheduler, torch_dtype=torch.float16)
+        scheduler = EulerDiscreteScheduler.from_pretrained(
+            model_id, subfolder="scheduler"
+        )
+        self.pipe = StableDiffusionPipeline.from_pretrained(
+            model_id, scheduler=scheduler, torch_dtype=torch.float16
+        )
         self.pipe = self.pipe.to("mps")
 
-    async def make_cover(self) -> dict:
+    async def make_cover(self, text) -> dict:
         # Run inference on the text
-        prompt = "album cover: a little girl with her hands up and a flower in her mouth."
+        prompt = f"Album cover: {text}"
         image = self.pipe(prompt).images[0]
         image.save("ray_cover_album_output.png")
         return {"result": "ok"}
@@ -117,16 +125,18 @@ class CoverAlbumMaker:
     num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
     health_check_period_s=10,
-    health_check_timeout_s=70,
-    graceful_shutdown_timeout_s=70,
-    graceful_shutdown_wait_loop_s=2
+    health_check_timeout_s=500,
+    graceful_shutdown_timeout_s=500,
+    graceful_shutdown_wait_loop_s=2,
 )
 class VideoMaker:
     def __init__(self):
         # Define the paths to your image and audio files
         self.image_path = "output.png"  # Path to your PNG image
         self.audio_path = "musicgen_out.wav"  # Path to your WAV audio
-        self.output_video_path = "ray_final_video.mp4"  # Path to save the output video
+        self.output_video_path = (
+            "ray_final_video.mp4"  # Path to save the output video
+        )
 
     async def make_video(self) -> dict:
         # Run inference on the text
@@ -135,7 +145,9 @@ class VideoMaker:
         audio_clip = AudioFileClip(self.audio_path)
 
         # Load the image and set the duration to match the audio file's duration
-        image_clip = ImageClip(self.image_path).set_duration(audio_clip.duration)
+        image_clip = ImageClip(self.image_path).set_duration(
+            audio_clip.duration
+        )
 
         # Explicitly set the frame rate (FPS) for the video
         fps = 24  # Use a common frame rate
@@ -156,7 +168,7 @@ class VideoMaker:
             self.output_video_path,
             codec="libx264",
             audio_codec="aac",
-            fps=fps  # Pass the fps explicitly
+            fps=fps,  # Pass the fps explicitly
         )
 
         return {"ok": "model_output"}
@@ -168,13 +180,18 @@ class VideoMaker:
     num_replicas=2,
     ray_actor_options={"num_cpus": 4, "num_gpus": 0},
     health_check_period_s=10,
-    health_check_timeout_s=70,
-    graceful_shutdown_timeout_s=70,
-    graceful_shutdown_wait_loop_s=2
+    health_check_timeout_s=500,
+    graceful_shutdown_timeout_s=500,
+    graceful_shutdown_wait_loop_s=2,
 )
 class WrapperModels:
-    def __init__(self, image_classifier: DeploymentHandle, sentiment_analysis: DeploymentHandle,
-                 cover_album_maker: DeploymentHandle, video_maker: DeploymentHandle):
+    def __init__(
+        self,
+        image_classifier: DeploymentHandle,
+        sentiment_analysis: DeploymentHandle,
+        cover_album_maker: DeploymentHandle,
+        video_maker: DeploymentHandle,
+    ):
         # Load sentiment analysis model
         self.model = pipeline("text-to-audio", model="facebook/musicgen-small")
         self.image_classifier = image_classifier
@@ -186,17 +203,11 @@ class WrapperModels:
         # Run inference on the text
         music = self.model(text, forward_params={"do_sample": True})
         print("It's HERE!!!!!")
-        scipy.io.wavfile.write("musicgen_out.wav", rate=music["sampling_rate"], data=music["audio"])
-        """
-        inputs = self.processor(
-            text=["a little girl with her hands up and a flower in her mouth.",
-                  "90s rock song with loud guitars and heavy drums"],
-            padding=True,
-            return_tensors="pt",
+        scipy.io.wavfile.write(
+            "musicgen_out.wav",
+            rate=music["sampling_rate"],
+            data=music["audio"],
         )
-
-        audio_values = self.music_model.generate(**inputs, max_new_tokens=256)
-        """
 
         return "music"
 
@@ -227,25 +238,34 @@ class WrapperModels:
         sentiment_result = await sentiment  # Await the ObjectRef
 
         # Step 3: Generate music based on the sentiment and caption
-        music_result = await self.generate_music(sentiment_result["label"], caption)
+        music_result = await self.generate_music(
+            sentiment_result["label"], caption
+        )
         logger.info(f"Generated music result: {music_result}")
 
-        #process_music = await self.process_music(caption)
-        process_music = "jaja"
-        logger.info(f"Generated music process result: {process_music}")
-
-        cover = self.cover_album_maker.make_cover.remote()
+        cover = self.cover_album_maker.make_cover.remote(caption)
         cover_result = await cover  # Await the ObjectRef
 
-        #video = self.video_maker.make_video.remote()
-        #video_result = await video  # Await the ObjectRef
+        process_music = await self.process_music(caption)
+        # process_music = "jaja"
+        logger.info(f"Generated music process result: {process_music}")
+
+        # video = self.video_maker.make_video.remote()
+        # video_result = await video  # Await the ObjectRef
 
         # Return both the caption and the sentiment analysis result
-        return {"caption": caption, "sentiment": sentiment_result, "music": music_result,
-                "process_music": process_music}
+        return {
+            "caption": caption,
+            "sentiment": sentiment_result,
+            "music": music_result,
+            "process_music": process_music,
+        }
 
 
 # Bind deployments
 app = WrapperModels.options(route_prefix="/classify").bind(
-    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind(), CoverAlbumMaker.bind(), VideoMaker.bind()
+    ImageClassifier.bind(Downloader.bind()),
+    SentimentAnalysis.bind(),
+    CoverAlbumMaker.bind(),
+    VideoMaker.bind(),
 )

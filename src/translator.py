@@ -1,13 +1,13 @@
 # File name: serve_quickstart.py
-from starlette.requests import Request
-
 import ray
 from ray import serve
-
+from starlette.requests import Request
 from transformers import pipeline
 
 
-@serve.deployment(num_replicas=2, ray_actor_options={"num_cpus": 0.2, "num_gpus": 0})
+@serve.deployment(
+    num_replicas=2, ray_actor_options={"num_cpus": 0.2, "num_gpus": 0}
+)
 class Translator:
     def __init__(self):
         # Load model

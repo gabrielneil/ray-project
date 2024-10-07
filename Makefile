@@ -8,6 +8,21 @@ install:
 		python -m pip install --no-cache-dir -r requirements.txt; \
 	)
 
+isort:
+	@python -m isort -l 79 --profile black --check .
+
+black:
+	@python -m black -l 79 --check .
+
+pylama:
+	@python -m pylama .
+
+lint: isort black pylama
+
+lint-fix:
+	@python -m isort -l 79 --profile black .
+	@python -m black -l 79 .
+
 start-and-serve:
 	@( \
 		ray start --head; \

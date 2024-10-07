@@ -3,8 +3,8 @@ from typing import Dict
 
 import ray
 import torch
+from fastapi import FastAPI, File, UploadFile
 from PIL import Image
-from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from ray import serve
 from torchvision import transforms
@@ -24,21 +24,27 @@ class ImgClassification:
     def __init__(self):
         self.count = 0
         self.model = resnet18(pretrained=True).eval()
-        self.preprocessor = transforms.Compose([
-            transforms.Resize(224),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda t: t[:3, ...]),  # remove the alpha channel
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        self.preprocessor = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Lambda(
+                    lambda t: t[:3, ...]
+                ),  # remove the alpha channel
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
 
     def classify(self, image_payload_bytes):
         pil_image = Image.open(BytesIO(image_payload_bytes))
 
         pil_images = [pil_image]  # batch size is one
         input_tensor = torch.cat(
-            [self.preprocessor(i).unsqueeze(0) for i in pil_images])
+            [self.preprocessor(i).unsqueeze(0) for i in pil_images]
+        )
 
         with torch.no_grad():
             output_tensor = self.model(input_tensor)
@@ -57,9 +63,7 @@ class SentimentAnalysisRequest(BaseModel):
 
 
 # 2.2: Create model and endpoint
-@serve.deployment(
-    num_replicas=2,
-    max_concurrent_queries=15)
+@serve.deployment(num_replicas=2, max_concurrent_queries=15)
 @serve.ingress(app)
 class SentimentAnalysis:
     def __init__(self):
