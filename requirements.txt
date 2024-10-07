@@ -7,3 +7,6 @@ python-multipart
 xformers
 scipy
 tf-keras
+diffusers
+moviepy
+ffmpeg

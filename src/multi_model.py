@@ -4,10 +4,12 @@ from io import BytesIO
 from urllib.request import Request
 
 import requests
+import scipy
 from PIL import Image
 from ray import serve
 from ray.serve.handle import DeploymentHandle
-from transformers import pipeline, AutoProcessor, MusicgenForConditionalGeneration
+from transformers import pipeline
+from moviepy.editor import *
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -29,9 +31,8 @@ class Downloader:
 # ImageClassifier Deployment
 @serve.deployment(
     name="ImageClassifier",
-    num_replicas=2,
+    num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
-    # max_concurrent_queries=100,
     health_check_period_s=10,
     health_check_timeout_s=70,
     graceful_shutdown_timeout_s=70,
@@ -52,12 +53,11 @@ class ImageClassifier:
         return {"response": caption}
 
 
-# ImageClassifier Deployment
+# SentimentAnalysis Deployment
 @serve.deployment(
     name="SentimentAnalysis",
-    num_replicas=2,
+    num_replicas=1,
     ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
-    # max_concurrent_queries=100,
     health_check_period_s=10,
     health_check_timeout_s=70,
     graceful_shutdown_timeout_s=70,
@@ -74,37 +74,80 @@ class SentimentAnalysis:
         return model_output
 
 
+# VideoMaker Deployment
+@serve.deployment(
+    name="VideoMaker",
+    num_replicas=1,
+    ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
+    health_check_period_s=10,
+    health_check_timeout_s=70,
+    graceful_shutdown_timeout_s=70,
+    graceful_shutdown_wait_loop_s=2
+)
+class VideoMaker:
+    def __init__(self):
+        # Define the paths to your image and audio files
+        self.image_path = "output.png"  # Path to your PNG image
+        self.audio_path = "musicgen_out.wav"  # Path to your WAV audio
+        self.output_video_path = "ray_final_video.mp4"  # Path to save the output video
+
+    async def make_video(self) -> dict:
+
+        # Run inference on the text
+        logger.info("Performed sentiment analysis.")
+        # Load the audio file
+        audio_clip = AudioFileClip(self.audio_path)
+
+        # Load the image and set the duration to match the audio file's duration
+        image_clip = ImageClip(self.image_path).set_duration(audio_clip.duration)
+
+        # Explicitly set the frame rate (FPS) for the video
+        fps = 24  # Use a common frame rate
+        image_clip = image_clip.set_fps(fps)
+
+        # Print the fps to debug
+        print(f"FPS value: {fps}")
+
+        # Check if fps is set correctly
+        if fps is None:
+            raise ValueError("FPS value is None. Please set a valid FPS.")
+
+        # Set the audio to the image clip
+        video_clip = image_clip.set_audio(audio_clip)
+
+        # Write the video file
+        video_clip.write_videofile(
+            self.output_video_path,
+            codec="libx264",
+            audio_codec="aac",
+            fps=fps  # Pass the fps explicitly
+        )
+
+        return {"ok": "model_output"}
+
+
 # WrapperModels Deployment
 @serve.deployment(
     name="WrapperModels",
     num_replicas=2,
     ray_actor_options={"num_cpus": 4, "num_gpus": 0},
-    # max_concurrent_queries=100,
     health_check_period_s=10,
     health_check_timeout_s=70,
     graceful_shutdown_timeout_s=70,
     graceful_shutdown_wait_loop_s=2
 )
 class WrapperModels:
-    def __init__(self, image_classifier: DeploymentHandle, sentiment_analysis: DeploymentHandle):
+    def __init__(self, image_classifier: DeploymentHandle, sentiment_analysis: DeploymentHandle,
+                 video_maker: DeploymentHandle):
         # Load sentiment analysis model
         self.model = pipeline("text-to-audio", model="facebook/musicgen-small")
-        # self.model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
         self.image_classifier = image_classifier
         self.sentiment_analysis = sentiment_analysis
-        # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
-        # self.music_model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
-    """
-    def analyze_sentiment(self, text: str) -> dict:
-        # Run inference on the text
-        model_output = self.model(text)[0]
-        logger.info("Performed sentiment analysis.")
-        return model_output
-    """
+        self.video_maker = video_maker
+
     def process_music(self, text: str) -> dict:
         # Run inference on the text
-        """
-        music = self.music_model(text, forward_params={"do_sample": True})
+        music = self.model(text, forward_params={"do_sample": True})
         print("It's HERE!!!!!")
         scipy.io.wavfile.write("musicgen_out.wav", rate=music["sampling_rate"], data=music["audio"])
         """
@@ -116,6 +159,8 @@ class WrapperModels:
         )
 
         audio_values = self.music_model.generate(**inputs, max_new_tokens=256)
+        """
+
         return "music"
 
     async def generate_music(self, sentiment: str, caption: str) -> str:
@@ -139,29 +184,28 @@ class WrapperModels:
         caption = caption_result["response"]
 
         logger.info("Caption obtained from ImageClassifier: %s", caption)
-        """
-        # Perform sentiment analysis on the caption
-        sentiment = self.analyze_sentiment(caption)
-        """
 
         # Perform sentiment analysis on the caption
         sentiment = self.sentiment_analysis.analyze_sentiment.remote(caption)
         sentiment_result = await sentiment  # Await the ObjectRef
 
-
-
         # Step 3: Generate music based on the sentiment and caption
         music_result = await self.generate_music(sentiment_result["label"], caption)
         logger.info(f"Generated music result: {music_result}")
-        return {"caption": caption, "sentiment": sentiment_result, "music": music_result}
-        #process_music = await self.process_music(caption)
+
+        # process_music = await self.process_music(caption)
         process_music = "jaja"
         logger.info(f"Generated music process result: {process_music}")
+
+        video = self.video_maker.make_video.remote()
+        video_result = await video  # Await the ObjectRef
+
         # Return both the caption and the sentiment analysis result
-        return {"caption": caption, "sentiment": sentiment, "music": music_result, "process_music": process_music}
+        return {"caption": caption, "sentiment": sentiment_result, "music": music_result,
+                "process_music": process_music}
 
 
 # Bind deployments
 app = WrapperModels.options(route_prefix="/classify").bind(
-    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind()
+    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind(), VideoMaker.bind()
 )

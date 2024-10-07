@@ -39,7 +39,7 @@ applications:
   - name: Downloader
 
   - name: ImageClassifier
-    num_replicas: 2
+    num_replicas: 1
     graceful_shutdown_wait_loop_s: 2.0
     graceful_shutdown_timeout_s: 70.0
     health_check_period_s: 10.0
@@ -49,7 +49,17 @@ applications:
       num_gpus: 0.0
 
   - name: SentimentAnalysis
-    num_replicas: 2
+    num_replicas: 1
+    graceful_shutdown_wait_loop_s: 2.0
+    graceful_shutdown_timeout_s: 70.0
+    health_check_period_s: 10.0
+    health_check_timeout_s: 70.0
+    ray_actor_options:
+      num_cpus: 0.2
+      num_gpus: 0.0
+
+  - name: VideoMaker
+    num_replicas: 1
     graceful_shutdown_wait_loop_s: 2.0
     graceful_shutdown_timeout_s: 70.0
     health_check_period_s: 10.0
