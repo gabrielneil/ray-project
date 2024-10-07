@@ -13,8 +13,11 @@ from ray.serve.handle import DeploymentHandle
 from transformers import pipeline
 
 # Set up logging
-
 logger = logging.getLogger("ray.serve")
+
+# Paths
+img_path = "ray_cover_album_output.png"
+song_path = "ray_musicgen_out.wav"
 
 
 # Downloader Deployment
@@ -50,6 +53,7 @@ class ImageClassifier:
         logger.info("Processing image in ImageClassifier.")
 
         caption = self.model(image)[0]["generated_text"]
+
         return {"response": caption}
 
 
@@ -72,8 +76,8 @@ class SentimentAnalysis:
 
     async def analyze_sentiment(self, text: str) -> dict:
         # Run inference on the text
+        logger.info("Performing sentiment analysis.")
         model_output = self.model(text)[0]
-        logger.info("Performed sentiment analysis.")
         return model_output
 
 
@@ -102,8 +106,8 @@ class CoverAlbumMaker:
         # Run inference on the text
         prompt = f"Album cover: {text}"
         image = self.pipe(prompt).images[0]
-        image.save("ray_cover_album_output.png")
-        return {"result": "ok"}
+        image.save(img_path)
+        return {"result": "success"}
 
 
 # VideoMaker Deployment
@@ -119,10 +123,8 @@ class CoverAlbumMaker:
 class VideoMaker:
     def __init__(self):
         # Define the paths to your image and audio files
-        self.image_path = (
-            "ray_cover_album_output.png"  # Path to your PNG image
-        )
-        self.audio_path = "ray_musicgen_out.wav"  # Path to your WAV audio
+        self.image_path = img_path
+        self.audio_path = song_path  # Path to your WAV audio
         self.output_video_path = (
             "ray_final_video.mp4"  # Path to save the output video
         )
@@ -160,7 +162,7 @@ class VideoMaker:
             fps=fps,  # Pass the fps explicitly
         )
 
-        return {"ok": "model_output"}
+        return {"result": "success"}
 
 
 # MusicMaker Deployment
@@ -187,12 +189,12 @@ class MusicMaker:
         logger.info("It's HERE!!!!!")
 
         scipy.io.wavfile.write(
-            "ray_musicgen_out.wav",
+            song_path,
             rate=music["sampling_rate"],
             data=music["audio"],
         )
 
-        return {"ok": "model_output"}
+        return {"result": "success"}
 
 
 # WrapperModels Deployment
@@ -233,45 +235,47 @@ class WrapperModels:
 
     async def __call__(self, http_request: Request) -> dict:
         request_data: dict = await http_request.json()
-        image_url = request_data["image_url"]
-        # logger.info("Received request in SentimentAnalysis.", image_url)
 
-        # Get the caption from the ImageClassifier
+        image_url = request_data["image_url"]
+        logger.info(f"Received request in SentimentAnalysis. {image_url}")
+
+        # Step 1: Get the caption from the ImageClassifier
         caption_result_ref = self.image_classifier.classify.remote(image_url)
-        caption_result = await caption_result_ref  # Await the ObjectRef
+        caption_result = await caption_result_ref
 
         caption = caption_result["response"]
 
-        logger.info("Caption obtained from ImageClassifier: %s", caption)
+        logger.info(f"Caption obtained from ImageClassifier: {caption}")
 
-        # Perform sentiment analysis on the caption
+        # Step 2: Perform sentiment analysis on the caption
         sentiment = self.sentiment_analysis.analyze_sentiment.remote(caption)
-        sentiment_result = await sentiment  # Await the ObjectRef
+        sentiment_result = await sentiment
+        sentiment_result = sentiment_result["label"]
 
         logger.info(f"SENTIMENT ANALISYS RESULTTTTT: {sentiment_result}")
 
-        # Step 3: Generate music based on the sentiment and caption
-        music_result = await self.generate_music(
-            sentiment_result["label"], caption
-        )
+        # Step 3: Generate music sentence based on the sentiment and caption
+        music_result = await self.generate_music(sentiment_result, caption)
         logger.info(f"Generated music result!!!: {music_result}")
 
+        # Step 4: Generate album cover
         cover = self.cover_album_maker.make_cover.remote(caption)
-        cover_result = await cover  # Await the ObjectRef
+        cover_result = await cover
 
         logger.info(f"COVER RESULTTTTT!!!: {cover_result}")
 
+        # Step 5: Generate song
         process_music = self.music_maker.process_music.remote(caption)
         process_music_result = await process_music
 
-        logger.info(f"PROCESSS MUSSICCCC!!!: {process_music_result}")
-        # process_music = "jaja"
-        logger.info(f"Generated music process result: {process_music_result}")
+        logger.info(f"Generated song process result: {process_music_result}")
 
+        # Step 6: Generate video file
         video = self.video_maker.make_video.remote()
-        video_result = await video  # Await the ObjectRef
+        video_result = await video
 
         logger.info(f"Generated VIDEO!!!!: {video_result}")
+
         # Return both the caption and the sentiment analysis result
         return {
             "caption": caption,
