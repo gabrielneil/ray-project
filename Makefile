@@ -39,7 +39,9 @@ launch-prometheus:
 		ray metrics launch-prometheus; \
 	)
 
-execute-project: start build deploy launch-prometheus
+execute-project: start build deploy
+
+restart: stop execute-project
 
 deploy-multiple-models:
 	@( \

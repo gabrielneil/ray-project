@@ -63,22 +63,18 @@ class ImageClassifier:
     graceful_shutdown_timeout_s=70,
     graceful_shutdown_wait_loop_s=2
 )
-class ImageClassifier:
-    def __init__(self, downloader: DeploymentHandle):
-        self.downloader = downloader
-        self.model = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
+class SentimentAnalysis:
+    def __init__(self):
+        self.model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
-    async def classify(self, image_url: str) -> dict:
-        image_ref = self.downloader.remote(image_url)
-        image = await image_ref  # Await the ObjectRef
-
-        logger.info("Processing image in ImageClassifier.")
-
-        caption = self.model(image)[0]["generated_text"]
-        return {"response": caption}
+    async def analyze_sentiment(self, text: str) -> dict:
+        # Run inference on the text
+        model_output = self.model(text)[0]
+        logger.info("Performed sentiment analysis.")
+        return model_output
 
 
-# SentimentAnalysis Deployment
+# WrapperModels Deployment
 @serve.deployment(
     name="WrapperModels",
     num_replicas=2,
@@ -89,21 +85,22 @@ class ImageClassifier:
     graceful_shutdown_timeout_s=70,
     graceful_shutdown_wait_loop_s=2
 )
-class SentimentAnalysis:
-    def __init__(self, image_classifier: DeploymentHandle):
+class WrapperModels:
+    def __init__(self, image_classifier: DeploymentHandle, sentiment_analysis: DeploymentHandle):
         # Load sentiment analysis model
-        self.model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+        self.model = pipeline("text-to-audio", model="facebook/musicgen-small")
+        # self.model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
         self.image_classifier = image_classifier
-        self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
-        self.music_model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
-        # self.music_model = pipeline("text-to-audio", model="facebook/musicgen-small")
-
+        self.sentiment_analysis = sentiment_analysis
+        # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+        # self.music_model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
+    """
     def analyze_sentiment(self, text: str) -> dict:
         # Run inference on the text
         model_output = self.model(text)[0]
         logger.info("Performed sentiment analysis.")
         return model_output
-
+    """
     def process_music(self, text: str) -> dict:
         # Run inference on the text
         """
@@ -140,23 +137,31 @@ class SentimentAnalysis:
         caption_result = await caption_result_ref  # Await the ObjectRef
 
         caption = caption_result["response"]
-        logger.info("Caption obtained from ImageClassifier: %s", caption)
 
+        logger.info("Caption obtained from ImageClassifier: %s", caption)
+        """
         # Perform sentiment analysis on the caption
         sentiment = self.analyze_sentiment(caption)
+        """
+
+        # Perform sentiment analysis on the caption
+        sentiment = self.sentiment_analysis.analyze_sentiment.remote(caption)
+        sentiment_result = await sentiment  # Await the ObjectRef
+
+
 
         # Step 3: Generate music based on the sentiment and caption
-        music_result = await self.generate_music(sentiment["label"], caption)
+        music_result = await self.generate_music(sentiment_result["label"], caption)
         logger.info(f"Generated music result: {music_result}")
-
-        process_music = await self.process_music(caption)
-        # process_music = "jaja"
+        return {"caption": caption, "sentiment": sentiment_result, "music": music_result}
+        #process_music = await self.process_music(caption)
+        process_music = "jaja"
         logger.info(f"Generated music process result: {process_music}")
         # Return both the caption and the sentiment analysis result
         return {"caption": caption, "sentiment": sentiment, "music": music_result, "process_music": process_music}
 
 
 # Bind deployments
-app = SentimentAnalysis.options(route_prefix="/classify").bind(
-    ImageClassifier.bind(Downloader.bind())
+app = WrapperModels.options(route_prefix="/classify").bind(
+    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind()
 )
