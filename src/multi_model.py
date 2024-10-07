@@ -10,6 +10,8 @@ from ray import serve
 from ray.serve.handle import DeploymentHandle
 from transformers import pipeline
 from moviepy.editor import *
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
+import torch
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +19,16 @@ logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.flush = sys.stdout.flush
 logger.addHandler(handler)
+
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+elif torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
+torch.set_printoptions(profile="full")
+torch.backends.mps.verbose = True
 
 
 # Downloader Deployment
@@ -45,7 +57,7 @@ class ImageClassifier:
 
     async def classify(self, image_url: str) -> dict:
         image_ref = self.downloader.remote(image_url)
-        image = await image_ref  # Await the ObjectRef
+        image = await image_ref
 
         logger.info("Processing image in ImageClassifier.")
 
@@ -74,6 +86,31 @@ class SentimentAnalysis:
         return model_output
 
 
+# CoverAlbumMaker Deployment
+@serve.deployment(
+    name="CoverAlbumMaker",
+    num_replicas=1,
+    ray_actor_options={"num_cpus": 0.2, "num_gpus": 0},
+    health_check_period_s=10,
+    health_check_timeout_s=70,
+    graceful_shutdown_timeout_s=70,
+    graceful_shutdown_wait_loop_s=2
+)
+class CoverAlbumMaker:
+    def __init__(self):
+        model_id = "stabilityai/stable-diffusion-2"
+        scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
+        self.pipe = StableDiffusionPipeline.from_pretrained(model_id, scheduler=scheduler, torch_dtype=torch.float16)
+        self.pipe = self.pipe.to("mps")
+
+    async def make_cover(self) -> dict:
+        # Run inference on the text
+        prompt = "album cover: a little girl with her hands up and a flower in her mouth."
+        image = self.pipe(prompt).images[0]
+        image.save("ray_cover_album_output.png")
+        return {"result": "ok"}
+
+
 # VideoMaker Deployment
 @serve.deployment(
     name="VideoMaker",
@@ -92,7 +129,6 @@ class VideoMaker:
         self.output_video_path = "ray_final_video.mp4"  # Path to save the output video
 
     async def make_video(self) -> dict:
-
         # Run inference on the text
         logger.info("Performed sentiment analysis.")
         # Load the audio file
@@ -138,11 +174,12 @@ class VideoMaker:
 )
 class WrapperModels:
     def __init__(self, image_classifier: DeploymentHandle, sentiment_analysis: DeploymentHandle,
-                 video_maker: DeploymentHandle):
+                 cover_album_maker: DeploymentHandle, video_maker: DeploymentHandle):
         # Load sentiment analysis model
         self.model = pipeline("text-to-audio", model="facebook/musicgen-small")
         self.image_classifier = image_classifier
         self.sentiment_analysis = sentiment_analysis
+        self.cover_album_maker = cover_album_maker
         self.video_maker = video_maker
 
     def process_music(self, text: str) -> dict:
@@ -193,12 +230,15 @@ class WrapperModels:
         music_result = await self.generate_music(sentiment_result["label"], caption)
         logger.info(f"Generated music result: {music_result}")
 
-        # process_music = await self.process_music(caption)
+        #process_music = await self.process_music(caption)
         process_music = "jaja"
         logger.info(f"Generated music process result: {process_music}")
 
-        video = self.video_maker.make_video.remote()
-        video_result = await video  # Await the ObjectRef
+        cover = self.cover_album_maker.make_cover.remote()
+        cover_result = await cover  # Await the ObjectRef
+
+        #video = self.video_maker.make_video.remote()
+        #video_result = await video  # Await the ObjectRef
 
         # Return both the caption and the sentiment analysis result
         return {"caption": caption, "sentiment": sentiment_result, "music": music_result,
@@ -207,5 +247,5 @@ class WrapperModels:
 
 # Bind deployments
 app = WrapperModels.options(route_prefix="/classify").bind(
-    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind(), VideoMaker.bind()
+    ImageClassifier.bind(Downloader.bind()), SentimentAnalysis.bind(), CoverAlbumMaker.bind(), VideoMaker.bind()
 )
